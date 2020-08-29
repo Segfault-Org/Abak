@@ -1,4 +1,4 @@
-package segfault.abak.restore;
+package segfault.abak.restore.ui;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -20,12 +20,16 @@ import androidx.annotation.UiThread;
 import androidx.annotation.WorkerThread;
 import java9.util.Optional;
 import java9.util.stream.StreamSupport;
-import moe.shizuku.preference.*;
+import moe.shizuku.preference.CheckBoxPreference;
+import moe.shizuku.preference.PreferenceFragment;
+import moe.shizuku.preference.PreferenceGroup;
+import moe.shizuku.preference.TwoStatePreference;
 import segfault.abak.R;
-import segfault.abak.backup.BackupProgressFragment;
+import segfault.abak.common.AppPluginPair;
 import segfault.abak.common.AppUtils;
 import segfault.abak.common.backupformat.entries.ApplicationEntryV1;
 import segfault.abak.common.widgets.Nav;
+import segfault.abak.restore.RestoreOptions;
 import segfault.abak.sdkclient.Plugin;
 import segfault.abak.sdkclient.SDKClient;
 
@@ -237,11 +241,11 @@ public class RestoreOptionsFragment extends PreferenceFragment implements Handle
 
                     if (plugin == null || plugin.version() < applicationEntry.pluginVersion()) {
                         // No longer available, remove.
-                        final Optional<RestoreOptions.AppPluginPair> existing = StreamSupport.stream(mOptions.apps())
+                        final Optional<RestoreOptions.DataAppPluginPair> existing = StreamSupport.stream(mOptions.apps())
                                 .filter(pair -> {
                                     // Do a swallow match
-                                    return pair.application().equals(applicationEntry.application()) &&
-                                            pair.plugin().component().equals(applicationEntry.pluginComponent());
+                                    return pair.pair().application().equals(applicationEntry.application()) &&
+                                            pair.pair().plugin().component().equals(applicationEntry.pluginComponent());
                                 })
                                 .findFirst();
                         if (existing.isPresent())
@@ -261,9 +265,10 @@ public class RestoreOptionsFragment extends PreferenceFragment implements Handle
                         preference.setChecked(false);
                         preference.setSummary(R.string.restore_plugin_outdated);
                     } else {
-                        final RestoreOptions.AppPluginPair pair = RestoreOptions.AppPluginPair.create(applicationEntry.application(),
-                                applicationEntry.data(),
-                                plugin);
+                        final RestoreOptions.DataAppPluginPair pair =
+                                RestoreOptions.DataAppPluginPair.create(
+                                        AppPluginPair.create(applicationEntry.application(), plugin),
+                                applicationEntry.data());
                         preference.setTitle(plugin.loadTitle(requireContext()));
                         preference.setEnabled(true);
                         preference.setChecked(mOptions.apps().contains(pair));

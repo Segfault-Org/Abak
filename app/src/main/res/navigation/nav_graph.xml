@@ -17,7 +17,7 @@
 
     <fragment
             android:id="@+id/fragment_backup"
-            android:name="segfault.abak.backup.BackupOptionsFragment"
+            android:name="segfault.abak.backup.ui.BackupOptionsFragment"
             android:label="@string/backup_title"
             tools:layout="@layout/fragment_backup" >
         <action android:id="@+id/action_fragment_backup_to_dialog_backup" app:destination="@id/dialog_backup"/>
@@ -25,7 +25,7 @@
 
     <fragment
             android:id="@+id/fragment_restore"
-            android:name="segfault.abak.restore.RestoreOptionsFragment"
+            android:name="segfault.abak.restore.ui.RestoreOptionsFragment"
             android:label="@string/restore_title"
             tools:layout="@layout/fragment_backup" >
         <action android:id="@+id/action_fragment_restore_to_dialog_restore" app:destination="@id/dialog_restore"/>
@@ -33,14 +33,14 @@
 
     <dialog
         android:id="@+id/dialog_backup"
-        android:name="segfault.abak.backup.BackupProgressFragment"
+        android:name="segfault.abak.backup.ui.BackupProgressFragment"
         android:label="@string/backup_action" >
         <argument android:name="segfault.abak.backup.BackupProgressFragment.EXTRA_BACKUP_OPTIONS"
-                  app:argType="segfault.abak.backup.BackupOptions"/>
+                  app:argType="segfault.abak.backup.ui.BackupOptions"/>
     </dialog>
     <dialog
             android:id="@+id/dialog_restore"
-            android:name="segfault.abak.restore.RestoreProgressFragment"
+            android:name="segfault.abak.restore.ui.RestoreProgressFragment"
             android:label="@string/restore_action" >
         <argument android:name="segfault.abak.restore.RestoreProgressFragment.EXTRA_RESTORE_OPTIONS"
                   app:argType="segfault.abak.restore.RestoreOptions"/>

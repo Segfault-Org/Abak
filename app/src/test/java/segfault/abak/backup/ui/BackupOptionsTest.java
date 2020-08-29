@@ -1,4 +1,4 @@
-package segfault.abak.backup;
+package segfault.abak.backup.ui;
 
 import android.content.ComponentName;
 import android.content.Context;
@@ -8,16 +8,12 @@ import androidx.test.core.app.ApplicationProvider;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
-import segfault.abak.BuildConfig;
 import segfault.abak.sdkclient.Plugin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 
 import static org.junit.Assert.*;
 

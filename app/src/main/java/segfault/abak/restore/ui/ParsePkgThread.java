@@ -1,4 +1,4 @@
-package segfault.abak.restore;
+package segfault.abak.restore.ui;
 
 import android.content.Context;
 import android.net.Uri;
@@ -7,7 +7,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.WorkerThread;
 import segfault.abak.common.backupformat.BackupLayout;
 import segfault.abak.common.backupformat.InvalidFormatException;
-import segfault.abak.common.backupformat.RestoreDriver;
 import segfault.abak.common.backupformat.manifest.ManifestFile;
 
 import java.io.File;
@@ -16,7 +15,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.UUID;
 
-public class ParsePkgThread implements Runnable {
+class ParsePkgThread implements Runnable {
     private static final String TAG = "ParsePkgThread";
 
     private final Uri mPkg;

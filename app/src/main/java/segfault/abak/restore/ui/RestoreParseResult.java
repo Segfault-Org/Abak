@@ -1,12 +1,9 @@
-package segfault.abak.restore;
+package segfault.abak.restore.ui;
 
-import android.net.Uri;
 import android.os.Parcelable;
 import androidx.annotation.NonNull;
 import com.google.auto.value.AutoValue;
-import segfault.abak.common.backupformat.entries.ApplicationEntryV1;
 import segfault.abak.common.backupformat.entries.Entry;
-import segfault.abak.sdkclient.Plugin;
 
 import java.io.File;
 import java.util.ArrayList;

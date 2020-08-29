@@ -1,4 +1,4 @@
-package segfault.abak.backup;
+package segfault.abak.backup.ui;
 
 import android.content.Context;
 import android.net.Uri;
@@ -6,17 +6,20 @@ import android.os.Parcelable;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.auto.value.AutoValue;
-
+import java9.util.stream.Collectors;
 import java9.util.stream.StreamSupport;
+import segfault.abak.backup.BackupThreadOptions;
+import segfault.abak.common.AppPluginPair;
 import segfault.abak.sdkclient.Plugin;
 
 import java.util.ArrayList;
+import java.util.List;
 
 /**
- * Immutable options entity for backing up.
+ * The options for the backup options UI.
  */
 @AutoValue
-public abstract class BackupOptions implements Parcelable {
+abstract class BackupOptions implements Parcelable {
     @NonNull
     public static BackupOptions create(@NonNull ArrayList<String> application,
                                        @NonNull ArrayList<Plugin> plugins,
@@ -56,5 +59,15 @@ public abstract class BackupOptions implements Parcelable {
         return plugins().size() != 0 &&
                 location() != null &&
                 application().size() != 0;
+    }
+
+    @NonNull
+    public BackupThreadOptions toThreadOptions() {
+        if (location() == null) throw new NullPointerException();
+        final List<AppPluginPair> pairs = StreamSupport.stream(application())
+                .flatMap(app -> StreamSupport.stream(plugins())
+                        .map(plugin -> AppPluginPair.create(app, plugin)))
+                .collect(Collectors.toList());
+        return BackupThreadOptions.create(pairs, location());
     }
 }

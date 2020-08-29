@@ -1,15 +1,16 @@
-package segfault.abak.common.backupformat;
+package segfault.abak.restore.ui;
 
 import androidx.annotation.NonNull;
 import org.kamranzafar.jtar.TarEntry;
 import org.kamranzafar.jtar.TarInputStream;
+import segfault.abak.common.backupformat.BackupLayout;
+import segfault.abak.common.backupformat.InvalidFormatException;
 import segfault.abak.common.backupformat.manifest.ManifestFile;
 import segfault.abak.common.widgets.FileUtils;
 
 import java.io.*;
-import java.util.stream.Collectors;
 
-public class RestoreDriver {
+class RestoreDriver {
     public static void extract(@NonNull InputStream tarball, @NonNull File destFolder) throws IOException {
         final TarInputStream tis = new TarInputStream(new BufferedInputStream(tarball));
         TarEntry entry;
@@ -58,7 +59,6 @@ public class RestoreDriver {
         bufferedReader.close();
         reader.close();
         inputStream.close();
-        if (content == null) throw new InvalidFormatException();
         return ManifestFile.parse(content, version);
     }
 

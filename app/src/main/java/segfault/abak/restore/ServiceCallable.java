@@ -9,16 +9,17 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 import androidx.annotation.WorkerThread;
-import segfault.abak.backup.BackupProgressFragment;
-import segfault.abak.sdk.*;
-import segfault.abak.sdkclient.Plugin;
-
 import java9.util.function.Supplier;
+import segfault.abak.common.AppPluginPair;
+import segfault.abak.sdk.IPluginService;
+import segfault.abak.sdk.RestoreRequest;
+import segfault.abak.sdk.SdkConstants;
+import segfault.abak.sdkclient.Plugin;
 
 class ServiceCallable implements Supplier<Uri> {
     private static final String TAG = "ServiceCallable";
 
-    private final Handler mUIHandler;
+    private final IRestoreThread.Callback mUIHandler;
 
     private final RestoreRequest mRequest;
     private final Plugin mPlugin;
@@ -26,7 +27,7 @@ class ServiceCallable implements Supplier<Uri> {
 
     private volatile boolean mDone; // Used to prevent additional (or delayed) messages from being received once the call is completed.
 
-    ServiceCallable(final @NonNull Handler uiHandler,
+    ServiceCallable(final @NonNull IRestoreThread.Callback uiHandler,
                     final @NonNull RestoreRequest request,
                     final @NonNull Plugin plugin,
                     final @NonNull IPluginService service) {
@@ -39,7 +40,8 @@ class ServiceCallable implements Supplier<Uri> {
     @Override
     @WorkerThread
     public Uri get() {
-        Log.d(TAG, "START " + RestoreProgressFragment.pluginToTask(mPlugin, mRequest.application) + " THREAD " + Thread.currentThread());
+        final AppPluginPair pair = AppPluginPair.create(mRequest.application, mPlugin);
+        Log.d(TAG, "START " + pair.taskName() + " THREAD " + Thread.currentThread());
         final PluginCallback callback = new PluginCallback(null /* Use null to receive calls directly on the binder thread, which reduces latency. */,
                 progress -> {
             if (mDone) {
@@ -48,11 +50,7 @@ class ServiceCallable implements Supplier<Uri> {
                 Log.w(TAG, "Ignoring message since the call is done: " + progress);
                 return;
             }
-            final String id = RestoreProgressFragment.pluginToTask(mPlugin, mRequest.application);
-            // Log.d(TAG, id + " TRACE PROG " + progress + " in " + Thread.currentThread());
-                    RestoreProgressFragment.sendProgress(mUIHandler,
-                    id,
-                    progress);
+            mUIHandler.sendProgress(pair, progress);
         });
 
         try {

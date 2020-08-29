@@ -5,12 +5,10 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.provider.OpenableColumns;
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class FileUtils {
     public static int sizeOf(@NonNull Uri uri, @NonNull Context context) {
@@ -42,11 +40,40 @@ public class FileUtils {
         }
     }
 
-    @Nullable
+    @NonNull
     public static String allLines(@NonNull BufferedReader reader) throws IOException {
+        final StringBuilder builder = new StringBuilder();
         String line;
         while ((line = reader.readLine()) != null) {
+            builder.append(line).append("\n");
         }
-        return line;
+        return builder.toString().trim();
+    }
+
+    @NonNull
+    public static List<File> walk(@NonNull File file) {
+        final List<File> lst = new ArrayList<>();
+
+        File[] list = file.listFiles();
+        if (list == null) return lst;
+
+        for (File f : list) {
+            if (f.isDirectory() ) {
+                lst.addAll(walk(f));
+            } else if (f.isFile()) {
+                lst.add(f);
+            }
+        }
+        return lst;
+    }
+
+    public static boolean deleteDirectory(@NonNull File directoryToBeDeleted) {
+        File[] allContents = directoryToBeDeleted.listFiles();
+        if (allContents != null) {
+            for (File file : allContents) {
+                deleteDirectory(file);
+            }
+        }
+        return directoryToBeDeleted.delete();
     }
 }

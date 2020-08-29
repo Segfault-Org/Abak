@@ -1,38 +1,45 @@
-package segfault.abak.restore;
+package segfault.abak.backup.ui;
 
 import android.app.Dialog;
-import android.os.*;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.Message;
 import android.util.Log;
 import android.view.View;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.WorkerThread;
+import java9.util.stream.Collectors;
+import java9.util.stream.StreamSupport;
 import segfault.abak.R;
+import segfault.abak.backup.BackupThreadOptions;
+import segfault.abak.backup.IBackupThread;
 import segfault.abak.common.AppUtils;
+import segfault.abak.common.widgets.FileUtils;
 import segfault.abak.common.widgets.progress.ProgressFragment;
 import segfault.abak.common.widgets.progress.Task;
-import segfault.abak.sdkclient.Plugin;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 
-import static segfault.abak.restore.RestoreThread.MSG_KO;
-import static segfault.abak.restore.RestoreThread.MSG_OK;
+public class BackupProgressFragment extends ProgressFragment implements Handler.Callback, IBackupThread.Callback {
+    private static final String TAG = "BackupProgressFragment";
 
-public class RestoreProgressFragment extends ProgressFragment implements Handler.Callback {
-    private static final String TAG = "RestoreProgressFragment";
+    static final String EXTRA_OPTIONS = BackupProgressFragment.class.getName() +
+            ".EXTRA_BACKUP_OPTIONS";
 
-    static final String EXTRA_RESTORE_OPTIONS = RestoreProgressFragment.class.getName() +
-            ".EXTRA_RESTORE_OPTIONS";
+    private static final int MSG_PROGRESS = 0;
+    private static final int MSG_OK = 1;
+    private static final int MSG_KO = 2;
 
-    static final int MSG_PROGRESS = 0;
-
-    private HandlerThread mRestoreThread;
+    private IBackupThread mBackupThread;
     private Handler mHandler;
 
-    private RestoreOptions mOptions;
+    private BackupThreadOptions mOptions;
 
     private final Queue<Message> mSuppressedMessages = new LinkedList<>();
 
@@ -40,7 +47,7 @@ public class RestoreProgressFragment extends ProgressFragment implements Handler
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setRetainInstance(true);
-        mOptions = getArguments().getParcelable(EXTRA_RESTORE_OPTIONS);
+        mOptions = getArguments().getParcelable(EXTRA_OPTIONS);
     }
 
     @Override
@@ -85,7 +92,7 @@ public class RestoreProgressFragment extends ProgressFragment implements Handler
     @Override
     public Dialog onCreateDialog(@Nullable Bundle savedInstanceState) {
         final Dialog dialog = super.onCreateDialog(savedInstanceState);
-        dialog.setTitle(R.string.restore_prof_title);
+        dialog.setTitle(R.string.backup_prof_title);
         return dialog;
     }
 
@@ -96,13 +103,14 @@ public class RestoreProgressFragment extends ProgressFragment implements Handler
             return true;
         } else if (message.what == MSG_OK) {
             setCancelable(true);
-            Toast.makeText(requireContext(), getString(R.string.restore_prof_ok), Toast.LENGTH_LONG).show();
-            getDialog().setTitle(R.string.restore_prof_ok_title);
+            Toast.makeText(requireContext(), getString(R.string.backup_prof_ok,
+                    FileUtils.sizeOf(mOptions.location(), requireContext())), Toast.LENGTH_LONG).show();
+            getDialog().setTitle(R.string.backup_prof_ok_title);
             return true;
         } else if (message.what == MSG_KO) {
             setCancelable(true);
-            Toast.makeText(requireContext(), getString(R.string.restore_prof_ko), Toast.LENGTH_LONG).show();
-            getDialog().setTitle(R.string.restore_prof_ko_title);
+            Toast.makeText(requireContext(), getString(R.string.backup_prof_ko), Toast.LENGTH_LONG).show();
+            getDialog().setTitle(R.string.backup_prof_ko_title);
         }
         return false;
     }
@@ -110,38 +118,39 @@ public class RestoreProgressFragment extends ProgressFragment implements Handler
     @Override
     public void onDestroy() {
         Log.d(TAG, "onDestroy");
-        mRestoreThread.quitSafely();
+        mBackupThread.stopThread();
         super.onDestroy();
     }
 
-    static String pluginToTask(@NonNull Plugin plugin, @NonNull String application) {
-        return "plug_" + plugin.component().getPackageName() + ":" + plugin.component().getClassName() + "_" + application;
+    @Override
+    public void run() {
+        final List<Task> tasks = new ArrayList<>(mOptions.tasks().size() + 1);
+        tasks.addAll(StreamSupport.stream(mOptions.tasks())
+                .map(pair -> Task.create(pair.taskName(),
+                        getString(R.string.backup_prog_task_plugin,
+                            pair.plugin().loadTitle(requireContext()),
+                            AppUtils.appName(pair.application(), requireContext())))).collect(Collectors.toList()));
+        tasks.add(Task.create("package", getString(R.string.backup_prog_package)));
+        addTasks(tasks);
+
+        // Setup UI Handler
+        mHandler = new Handler(Looper.getMainLooper(), this);
+        mBackupThread = IBackupThread.create(this, mOptions, requireContext());
+        mBackupThread.startThread();
     }
 
-    static void sendProgress(@NonNull Handler uiHandler, @NonNull String task, int progress) {
-        uiHandler.sendMessage(uiHandler.obtainMessage(MSG_PROGRESS,
+    @Override
+    @WorkerThread
+    public void sendProgress(@NonNull String task, int progress) {
+        mHandler.sendMessage(mHandler.obtainMessage(MSG_PROGRESS,
                 progress,
                 0,
                 task));
     }
 
-    static void sendProgress(@NonNull Handler uiHandler, @NonNull Plugin plugin, @NonNull String application, int progress) {
-        sendProgress(uiHandler, pluginToTask(plugin, application), progress);
-    }
-
     @Override
-    public void run() {
-        final List<Task> tasks = new ArrayList<>(mOptions.apps().size());
-        for (final RestoreOptions.AppPluginPair pair : mOptions.apps()) {
-            tasks.add(Task.create(pluginToTask(pair.plugin(), pair.application()), getString(R.string.backup_prog_task_plugin,
-                    pair.plugin().loadTitle(requireContext()),
-                    AppUtils.appName(pair.application(), requireContext()))));
-        }
-        addTasks(tasks);
-
-        // Setup UI Handler
-        mHandler = new Handler(Looper.getMainLooper(), this);
-        mRestoreThread = new RestoreThread(mHandler, mOptions, requireContext());
-        mRestoreThread.start();
+    @WorkerThread
+    public void sendResult(boolean success) {
+        mHandler.sendEmptyMessage(success ? MSG_OK : MSG_KO);
     }
 }

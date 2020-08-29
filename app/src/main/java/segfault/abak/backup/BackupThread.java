@@ -1,19 +1,19 @@
 package segfault.abak.backup;
 
-import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.Intent;
-import android.content.ServiceConnection;
-import android.os.*;
+import android.os.Handler;
+import android.os.HandlerThread;
+import android.os.Looper;
+import android.os.Message;
 import android.util.Log;
-import android.util.Pair;
 import androidx.annotation.NonNull;
+import java9.util.concurrent.CompletableFuture;
 import java9.util.stream.Collectors;
 import java9.util.stream.StreamSupport;
-import segfault.abak.BuildConfig;
-import segfault.abak.common.backupformat.BackupDriver;
-import segfault.abak.common.backupformat.entries.ApplicationEntryV1;
+import segfault.abak.common.AppPluginPair;
 import segfault.abak.common.BindServiceSupplier;
+import segfault.abak.common.backupformat.entries.ApplicationEntryV1;
 import segfault.abak.common.widgets.FileUtils;
 import segfault.abak.common.widgets.progress.Task;
 import segfault.abak.sdk.BackupRequest;
@@ -24,41 +24,32 @@ import segfault.abak.sdkclient.Plugin;
 import java.io.*;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
-import java9.util.concurrent.*;
-
-import static segfault.abak.backup.BackupProgressFragment.*;
-
-public class BackupThread extends HandlerThread implements Handler.Callback {
+class BackupThread extends HandlerThread implements Handler.Callback, IBackupThread {
     private static final String TAG = "BackupThread";
 
-    static final int MSG_OK = 1;
-    static final int MSG_KO = 2;
-
-    private final Handler mCallback;
-    private final BackupOptions mOptions;
+    private final IBackupThread.Callback mCallback;
+    private final BackupThreadOptions mOptions;
     private final Context mContext;
 
     private final ExecutorService mPool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 2);
-    private Set<ServiceConnection> mToBeDisconnected = new CopyOnWriteArraySet<>();
 
     private volatile boolean mAtLeastOneError = false;
 
     private Handler mThis;
 
-    private HashMap<Pair<String, Plugin>, BackupResponse> mResults;
+    private HashMap<AppPluginPair, BackupResponse> mResults;
+    private HashMap<Plugin, BindServiceSupplier.Result> mConns;
 
-    public BackupThread(@NonNull Handler callback, @NonNull BackupOptions options, @NonNull Context context) {
+    public BackupThread(@NonNull IBackupThread.Callback callback, @NonNull BackupThreadOptions options, @NonNull Context context) {
         super(TAG);
         mCallback = callback;
         mOptions = options;
         mContext = context;
-        mResults = new HashMap<>(mOptions.plugins().size());
+        mResults = new HashMap<>(mOptions.tasks().size());
+        mConns = new HashMap<>(mOptions.tasks().size());
     }
 
     @Override
@@ -76,119 +67,96 @@ public class BackupThread extends HandlerThread implements Handler.Callback {
             // Wait for addTasks() to draw. This is a really bad design.
             Thread.sleep(1000);
         } catch (InterruptedException ignored) {}
-        final List<Future<Void>> tasks = StreamSupport.stream(mOptions.plugins())
-                .map(plugin -> {
-                    // 1: Bind to service
-                    final CompletableFuture<IPluginService> future = CompletableFuture.supplyAsync(new BindServiceSupplier(mContext, new Intent().setComponent(plugin.component()), Context.BIND_AUTO_CREATE),
-                            mPool)
-                            .thenApply(result -> {
-                                if (!result.success) {
-                                    throw new IllegalStateException("Cannot bind to service " + plugin.component().flattenToShortString());
-                                }
-                                return result;
-                            })
-                            .thenApplyAsync(result -> {
-                                Log.d(TAG, "Conn: " + result.success);
-                                if (result.success && result.connection != null) {
-                                    // Add to the list ASAP.
-                                    // TODO: It still has service not registered exceptions.
-                                    mToBeDisconnected.add(result.connection);
-                                } else {
-                                    throw new IllegalStateException("Connection failed");
-                                }
-                                return IPluginService.Stub.asInterface(result.binder);
-                            }, mPool);
 
-                    // 2: Flat map the applications
-                    return future.thenComposeAsync(service ->
-                            CompletableFuture.allOf(
-                                StreamSupport.stream(mOptions.application())
-                                    .map(application -> {
-                                        Log.d(TAG, "Composing " + BackupProgressFragment.pluginToTask(plugin, application));
-                                        // TODO: Disable application
-                                        return CompletableFuture
-                                                // Create the folder, then share it via FileProvider
-                                                .supplyAsync(
-                                                    // Call backup AIDL function
-                                                    new ServiceCallable(mCallback,
-                                                            new BackupRequest(
-                                                                    application,
-                                                                    plugin.options()
-                                                            ),
-                                                            plugin, service),
-                                                            mPool)
-                                                .thenApplyAsync(result -> {
-                                                    try {
-                                                        Log.d(TAG, "Copying file");
-                                                        // Copy file
-                                                        final InputStream in = mContext.getContentResolver().openInputStream(result.response.data);
-                                                        final File cache = getReceivedCacheFile(application, plugin);
-                                                        final OutputStream out = new FileOutputStream(cache);
-                                                        FileUtils.copy(in, out);
-                                                        out.close();
-                                                        in.close();
-                                                        mContext.revokeUriPermission(result.response.data, 0);
-                                                        return result;
-                                                    } catch (IOException e) {
-                                                        throw new RuntimeException(e);
-                                                    }
-                                                }, mPool)
-                                                // 3: Handle and compose results
-                                                .handle((res, ex) -> {
-                                                    Log.d(TAG, "Handle");
-                                                    if (ex == null) {
-                                                        BackupProgressFragment.sendProgress(mCallback,
-                                                                plugin, application,
-                                                                Task.PROG_COMPLETED,
-                                                                MSG_PROGRESS_SRC_HANDLE);
-                                                        Log.i(TAG, BackupProgressFragment.pluginToTask(plugin, application) + " succeed.");
+        // TODO: Connecting may also be done in parallel.
+        for (final AppPluginPair pair : mOptions.tasks()) {
+            final Plugin plugin = pair.plugin();
+            if (mConns.containsKey(plugin)) continue;
+            final BindServiceSupplier.Result result = new BindServiceSupplier(mContext,
+                    new Intent().setComponent(plugin.component()),
+                    Context.BIND_AUTO_CREATE).get();
+            if (!result.success) {
+                mCallback.sendProgress(pair, Task.PROG_FAIL);
+                mAtLeastOneError = true;
+            }
+            mConns.put(plugin, result);
+        }
 
-                                                        // Not sure if it is safe.
-                                                        mResults.put(new Pair<>(application, plugin), res.response);
-                                                    } else {
-                                                        mAtLeastOneError = true;
-                                                        BackupProgressFragment.sendProgress(mCallback,
-                                                                plugin, application,
-                                                                Task.PROG_FAIL,
-                                                                MSG_PROGRESS_SRC_HANDLE);
-                                                        Log.e(TAG, BackupProgressFragment.pluginToTask(plugin, application) + " failed.", ex);
-                                                    }
-                                                    return res;
-                                                });
-                                    })
-                                    .collect(Collectors.toList())
-                                    .toArray(new CompletableFuture[]{})),
-                            mPool);
-                })
-                .collect(Collectors.toList());
-        final CompletableFuture<Void> bigFuture =
-                CompletableFuture.allOf(tasks.toArray(new CompletableFuture[]{}));
-        try {
-            bigFuture.get();
-        } catch (Exception e) {
-            Log.e(TAG, "General Failure", e);
-            mAtLeastOneError = true;
+        if (!mAtLeastOneError) {
+            final List<CompletableFuture<ServiceCallable.Result>> tasks = StreamSupport.stream(mOptions.tasks())
+                    .map(task -> {
+                        final IPluginService binder = IPluginService.Stub.asInterface(mConns.get(task.plugin()).binder);
+                        // TODO: Disable application
+                        return CompletableFuture
+                                .supplyAsync(
+                                        // Call backup AIDL function
+                                        new ServiceCallable(mCallback,
+                                                new BackupRequest(
+                                                        task.application(),
+                                                        task.plugin().options()
+                                                ),
+                                                task.plugin(),
+                                                binder),
+                                        mPool)
+                                .thenApplyAsync(result -> {
+                                    try {
+                                        Log.d(TAG, "Copying file");
+                                        // Copy file
+                                        // TODO: Copying can be skipped and the file may be directly added to the tarball.
+                                        final InputStream in = mContext.getContentResolver().openInputStream(result.response.data);
+                                        final File cache = getReceivedCacheFile(task);
+                                        final OutputStream out = new FileOutputStream(cache);
+                                        FileUtils.copy(in, out);
+                                        out.close();
+                                        in.close();
+                                        mContext.revokeUriPermission(result.response.data, 0);
+                                        return result;
+                                    } catch (IOException e) {
+                                        throw new RuntimeException(e);
+                                    }
+                                }, mPool)
+                                // 3: Handle and compose results
+                                .handle((res, ex) -> {
+                                    if (ex == null) {
+                                        mCallback.sendProgress(task, Task.PROG_COMPLETED);
+                                        Log.i(TAG, task.taskName() + " succeed.");
+
+                                        // Not sure if it is safe.
+                                        mResults.put(task, res.response);
+                                    } else {
+                                        mAtLeastOneError = true;
+                                        mCallback.sendProgress(task, Task.PROG_FAIL);
+                                        Log.e(TAG, task.taskName() + " failed.", ex);
+                                    }
+                                    return res;
+                                });
+                    })
+                    .collect(Collectors.toList());
+            final CompletableFuture<Void> bigFuture =
+                    CompletableFuture.allOf(tasks.toArray(new CompletableFuture[]{}));
+            try {
+                bigFuture.get();
+            } catch (Exception e) {
+                Log.e(TAG, "General Failure", e);
+                mAtLeastOneError = true;
+            }
         }
 
         Log.d(TAG, "Disconnecting from services");
-        StreamSupport.stream(mToBeDisconnected).forEach(mContext::unbindService);
+        StreamSupport.stream(mConns.values()).map(result -> result.connection).forEach(mContext::unbindService);
 
         // Package
         if (!mAtLeastOneError) {
-            BackupProgressFragment.sendProgress(mCallback,
-                    "package",
-                    Task.PROG_INDETERMINATE,
-                    MSG_PROGRESS_SRC_PACKAGE);
+            mCallback.sendProgress("package", Task.PROG_INDETERMINATE);
             final BackupDriver backupDriver = new BackupDriver(StreamSupport.stream(mResults.entrySet())
                     .map(pair -> {
-                        final Plugin plugin = pair.getKey().second;
-                        final String application = pair.getKey().first;
+                        final AppPluginPair task = pair.getKey();
                         // final BackupResponse response = pair.getValue().first.response;
                         return ApplicationEntryV1.create(
-                                application,
-                                plugin.component(),
-                                plugin.version(),
-                                getReceivedCacheFile(application, plugin)
+                                task.application(),
+                                task.plugin().component(),
+                                task.plugin().version(),
+                                getReceivedCacheFile(task)
                         );
                     })
                     .collect(Collectors.toList()),
@@ -197,29 +165,30 @@ public class BackupThread extends HandlerThread implements Handler.Callback {
                 final OutputStream stream = mContext.getContentResolver().openOutputStream(mOptions.location());
                 backupDriver.write(stream);
                 stream.close();
-                BackupProgressFragment.sendProgress(mCallback,
-                        "package",
-                        Task.PROG_COMPLETED,
-                        MSG_PROGRESS_SRC_PACKAGE);
+                mCallback.sendProgress("package", Task.PROG_COMPLETED);
             } catch (IOException e) {
                 Log.e(TAG, "Unable to package", e);
-                BackupProgressFragment.sendProgress(mCallback,
-                        "package",
-                        Task.PROG_FAIL,
-                        MSG_PROGRESS_SRC_PACKAGE);
+                mCallback.sendProgress("package", Task.PROG_FAIL);
             }
         } else {
             Log.w(TAG, "At least one error occurred, skip packaging.");
             // Mark as skipped
-            BackupProgressFragment.sendProgress(mCallback,
-                    "package",
-                    Task.PROG_SKIPPED,
-                    MSG_PROGRESS_SRC_PACKAGE);
+            mCallback.sendProgress("package", Task.PROG_SKIPPED);
         }
-        mCallback.sendMessage(mCallback.obtainMessage(mAtLeastOneError ? MSG_KO : MSG_OK));
+        mCallback.sendResult(!mAtLeastOneError);
     }
 
-    private @NonNull File getReceivedCacheFile(@NonNull String application, @NonNull Plugin plugin) {
-        return new File(mContext.getCacheDir(), BackupProgressFragment.pluginToTask(plugin, application));
+    private @NonNull File getReceivedCacheFile(@NonNull AppPluginPair pair) {
+        return new File(mContext.getCacheDir(), pair.taskName());
+    }
+
+    @Override
+    public void startThread() {
+        start();
+    }
+
+    @Override
+    public void stopThread() {
+        quitSafely();
     }
 }

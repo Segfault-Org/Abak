@@ -1,4 +1,4 @@
-package segfault.abak.backup;
+package segfault.abak.backup.ui;
 
 import android.app.Activity;
 import android.content.ComponentName;
@@ -6,10 +6,11 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.text.Html;
 import android.util.Log;
-import android.view.*;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import java9.util.Optional;
 import java9.util.stream.Collectors;
 import java9.util.stream.StreamSupport;
@@ -204,7 +205,7 @@ public class BackupOptionsFragment extends PreferenceFragment implements Prefere
             case 0:
                 final Bundle args = new Bundle();
                 args.putParcelable(BackupProgressFragment.EXTRA_OPTIONS,
-                        mOptions);
+                        mOptions.toThreadOptions());
                 Nav.get(this).navigate(R.id.action_fragment_backup_to_dialog_backup, args);
                 return true;
             default:

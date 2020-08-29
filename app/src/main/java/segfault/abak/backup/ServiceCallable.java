@@ -1,30 +1,25 @@
 package segfault.abak.backup;
 
-import android.content.ServiceConnection;
-import android.net.Uri;
-import android.os.*;
-import android.system.OsConstants;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.ResultReceiver;
 import android.util.Log;
 import androidx.annotation.NonNull;
-
-import java.nio.ByteBuffer;
-import java9.util.function.Supplier;
-
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 import androidx.annotation.WorkerThread;
+import java9.util.function.Supplier;
+import segfault.abak.common.AppPluginPair;
 import segfault.abak.sdk.BackupRequest;
 import segfault.abak.sdk.BackupResponse;
 import segfault.abak.sdk.IPluginService;
 import segfault.abak.sdk.SdkConstants;
 import segfault.abak.sdkclient.Plugin;
 
-import static segfault.abak.backup.BackupProgressFragment.*;
-
 class ServiceCallable implements Supplier<ServiceCallable.Result> {
     private static final String TAG = "ServiceCallable";
 
-    private final Handler mUIHandler;
+    private final IBackupThread.Callback mUIHandler;
 
     private final BackupRequest mRequest;
     private final Plugin mPlugin;
@@ -32,7 +27,7 @@ class ServiceCallable implements Supplier<ServiceCallable.Result> {
 
     private volatile boolean mDone; // Used to prevent additional (or delayed) messages from being received once the call is completed.
 
-    ServiceCallable(final @NonNull Handler uiHandler,
+    ServiceCallable(final @NonNull IBackupThread.Callback uiHandler,
                     final @NonNull BackupRequest request,
                     final @NonNull Plugin plugin,
                     final @NonNull IPluginService service) {
@@ -45,7 +40,8 @@ class ServiceCallable implements Supplier<ServiceCallable.Result> {
     @Override
     @WorkerThread
     public Result get() {
-        Log.d(TAG, "START " + BackupProgressFragment.pluginToTask(mPlugin, mRequest.application) + " THREAD " + Thread.currentThread());
+        final AppPluginPair pair = AppPluginPair.create(mRequest.application, mPlugin);
+        Log.d(TAG, "START " + pair.taskName() + " THREAD " + Thread.currentThread());
         final Result result = new Result();
         result.plugin = mPlugin;
         final PluginCallback callback = new PluginCallback(null /* Use null to receive calls directly on the binder thread, which reduces latency. */,
@@ -56,12 +52,7 @@ class ServiceCallable implements Supplier<ServiceCallable.Result> {
                 Log.w(TAG, "Ignoring message since the call is done: " + progress);
                 return;
             }
-            final String id = BackupProgressFragment.pluginToTask(mPlugin, mRequest.application);
-            // Log.d(TAG, id + " TRACE PROG " + progress + " in " + Thread.currentThread());
-            BackupProgressFragment.sendProgress(mUIHandler,
-                    id,
-                    progress,
-                    MSG_PROGRESS_SRC_PLUGIN);
+            mUIHandler.sendProgress(pair, progress);
         });
 
         try {
