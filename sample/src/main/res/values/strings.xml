@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Sample</string>
+
+    <string name="service_no_options">No options backup sample</string>
+    <string name="service_optional_options">Optional options sample</string>
+    <string name="service_required_options">Required options sample</string>
+</resources>

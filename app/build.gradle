@@ -1,0 +1,81 @@
+apply plugin: 'com.android.application'
+
+repositories {
+    maven {
+        url "https://dl.bintray.com/rikkaw/MaterialPreference"
+    }
+    maven {
+        url 'https://dl.bintray.com/rikkaw/Shizuku'
+    }
+}
+
+android {
+    compileSdkVersion 30
+
+    defaultConfig {
+        applicationId "segfault.abak"
+        minSdkVersion 21
+        targetSdkVersion 30
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+        }
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: "libs", include: ["*.jar"])
+
+    // Testing
+    testImplementation 'junit:junit:4.12'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.2'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.3.0'
+    testImplementation 'androidx.test:core:1.3.0'
+    testImplementation 'org.mockito:mockito-core:2.23.4'
+    testImplementation 'org.robolectric:robolectric:4.3'
+
+    // Basic support library
+    implementation 'androidx.fragment:fragment:1.2.5'
+    implementation 'androidx.constraintlayout:constraintlayout:2.0.1'
+    implementation "androidx.recyclerview:recyclerview:1.1.0"
+
+    def nav_version = "2.3.0"
+    implementation "androidx.navigation:navigation-fragment:$nav_version"
+    androidTestImplementation "androidx.navigation:navigation-testing:$nav_version"
+
+    implementation 'moe.shizuku.preference:preference-android:4.0.0'
+
+    // AutoValue
+    def autoValueVersion = "1.7.4"
+    implementation "com.google.auto.value:auto-value-annotations:$autoValueVersion"
+    annotationProcessor "com.google.auto.value:auto-value:$autoValueVersion"
+    annotationProcessor 'com.ryanharter.auto.value:auto-value-parcel:0.2.7'
+
+    // Stream
+    implementation 'net.sourceforge.streamsupport:android-retrostreams:1.7.2'
+    implementation 'net.sourceforge.streamsupport:android-retrofuture:1.7.2'
+
+    // SDK
+    implementation project(':sdk')
+
+    // Tar
+    implementation 'org.kamranzafar:jtar:2.3'
+}

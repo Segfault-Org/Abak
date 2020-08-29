@@ -1,0 +1,13 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="segfault.abak.sdk">
+
+    <uses-permission android:name="segfault.abak.BIND_PLUGIN_SERVICE" />
+    <queries>
+        <package android:name="segfault.abak" />
+    </queries>
+    <application>
+        <meta-data
+            android:name="sefgault.abak.sdk.version"
+            android:value="${version}" />
+    </application>
+</manifest>

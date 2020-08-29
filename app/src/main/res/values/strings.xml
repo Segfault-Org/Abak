@@ -1,0 +1,72 @@
+<resources>
+    <string name="app_name">ABak</string>
+
+    <!-- Main -->
+    <string name="main_title">ABak</string>
+    <string name="main_button_create_backup">Create Backup</string>
+    <string name="main_button_restore_backup">Restore Backup</string>
+
+    <!-- Backup -->
+    <string name="backup_title">Backup</string>
+    <string name="backup_action">Backup</string>
+    <string name="backup_app">Application</string>
+    <string name="backup_app_summary">%d selected</string>
+    <string name="backup_app_dup">There are duplications in the list</string>
+    <string name="backup_include">Include</string>
+    <string name="backup_location">Location</string>
+
+    <string name="backup_plugin_summary">
+        <![CDATA[
+%1$s
+        ]]>
+    </string>
+    <string name="backup_plugin_summary_conf_required">
+        <![CDATA[
+%1$s<br />
+<b>Settings required, tap for more details.</b>
+        ]]>
+    </string>
+    <string name="backup_plugin_summary_conf">
+        <![CDATA[
+%1$s<br />
+<b>Settings available, long click for more details.</b>
+        ]]>
+    </string>
+
+    <string name="backup_prog_backup_info">Collecting information</string>
+    <string name="backup_prog_disable">Disabling the app</string>
+    <string name="backup_prog_task_plugin">%1$s for %2$s</string>
+    <string name="backup_prog_package">Packaging the backup</string>
+
+    <string name="backup_prof_title">Backing up</string>
+    <string name="backup_prof_ok_title">Backup done</string>
+    <string name="backup_prof_ko_title">Backup failed</string>
+    <string name="backup_prof_ok">Backup done. Size: %1$s</string>
+    <string name="backup_prof_ko">Backup failed. Check logs for more details.</string>
+
+    <!-- Restore -->
+    <string name="restore_title">Restore</string>
+    <string name="restore_action">Restore</string>
+    <string name="restore_parse_fail">Cannot load the backup file. Check if it is corrupted or created by a newer version.</string>
+
+    <string name="restore_plugin_not_found">Plugin not found</string>
+    <string name="restore_plugin_outdated">Outdated</string>
+
+    <string name="restore_plugin_summary">
+        <![CDATA[
+%1$s<br />
+For %2$s
+        ]]>
+    </string>
+
+    <string name="restore_prog_task_plugin">%1$s for %2$s</string>
+
+    <string name="restore_prof_title">Restoring</string>
+    <string name="restore_prof_ok_title">Restore done</string>
+    <string name="restore_prof_ko_title">Restore failed</string>
+    <string name="restore_prof_ok">Restore done.</string>
+    <string name="restore_prof_ko">Backup failed. Check logs for more details.</string>
+
+    <!-- Progress -->
+    <string name="progress_status_item">%2$s (%1$s)</string>
+</resources>

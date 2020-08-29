@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+            xmlns:app="http://schemas.android.com/apk/res-auto"
+            xmlns:tools="http://schemas.android.com/tools"
+            android:id="@+id/nav_graph"
+            app:startDestination="@id/fragment_main">
+    <fragment
+            android:id="@+id/fragment_main"
+            android:name="segfault.abak.MainFragment"
+            android:label="@string/main_title"
+            tools:layout="@layout/fragment_main">
+        <action
+                android:id="@+id/action_fragment_main_to_fragment_backup"
+                app:destination="@id/fragment_backup"/>
+        <action android:id="@+id/action_fragment_main_to_fragment_restore" app:destination="@id/fragment_restore"/>
+    </fragment>
+
+    <fragment
+            android:id="@+id/fragment_backup"
+            android:name="segfault.abak.backup.BackupOptionsFragment"
+            android:label="@string/backup_title"
+            tools:layout="@layout/fragment_backup" >
+        <action android:id="@+id/action_fragment_backup_to_dialog_backup" app:destination="@id/dialog_backup"/>
+    </fragment>
+
+    <fragment
+            android:id="@+id/fragment_restore"
+            android:name="segfault.abak.restore.RestoreOptionsFragment"
+            android:label="@string/restore_title"
+            tools:layout="@layout/fragment_backup" >
+        <action android:id="@+id/action_fragment_restore_to_dialog_restore" app:destination="@id/dialog_restore"/>
+    </fragment>
+
+    <dialog
+        android:id="@+id/dialog_backup"
+        android:name="segfault.abak.backup.BackupProgressFragment"
+        android:label="@string/backup_action" >
+        <argument android:name="segfault.abak.backup.BackupProgressFragment.EXTRA_BACKUP_OPTIONS"
+                  app:argType="segfault.abak.backup.BackupOptions"/>
+    </dialog>
+    <dialog
+            android:id="@+id/dialog_restore"
+            android:name="segfault.abak.restore.RestoreProgressFragment"
+            android:label="@string/restore_action" >
+        <argument android:name="segfault.abak.restore.RestoreProgressFragment.EXTRA_RESTORE_OPTIONS"
+                  app:argType="segfault.abak.restore.RestoreOptions"/>
+    </dialog>
+</navigation>

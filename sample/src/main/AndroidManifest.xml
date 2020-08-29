@@ -1,0 +1,55 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="segfault.abak.sample">
+
+    <application
+            android:allowBackup="true"
+            android:label="@string/app_name"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:supportsRtl="true"
+            android:theme="@style/AppTheme">
+        <service android:name=".NoSettingsBackupService"
+                 android:label="@string/service_no_options"
+            android:permission="segfault.abak.BIND_PLUGIN_SERVICE">
+            <intent-filter>
+                <action android:name="segfault.abak.sdk.PluginService.ACTION" />
+            </intent-filter>
+        </service>
+        <service android:name=".OptionalSettingsBackupService"
+                 android:label="@string/service_optional_options"
+                 android:permission="segfault.abak.BIND_PLUGIN_SERVICE">
+            <intent-filter>
+                <action android:name="segfault.abak.sdk.PluginService.ACTION" />
+            </intent-filter>
+            <meta-data android:name="sefgault.abak.sdk.settings_activity"
+                       android:value=".SettingsActivity" />
+        </service>
+        <service android:name=".RequiredSettingsBackupService"
+                 android:label="@string/service_required_options"
+                 android:permission="segfault.abak.BIND_PLUGIN_SERVICE">
+            <intent-filter>
+                <action android:name="segfault.abak.sdk.PluginService.ACTION" />
+            </intent-filter>
+            <meta-data android:name="sefgault.abak.sdk.settings_activity"
+                       android:value=".SettingsActivity" />
+            <meta-data android:name="sefgault.abak.sdk.require_settings"
+                       android:value="true" />
+        </service>
+        <activity android:name=".SettingsActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+            </intent-filter>
+        </activity>
+
+        <provider
+                android:name="androidx.core.content.FileProvider"
+                android:authorities="${applicationId}.fileprovider"
+                android:grantUriPermissions="true"
+                android:exported="false">
+            <meta-data
+                    android:name="android.support.FILE_PROVIDER_PATHS"
+                    android:resource="@xml/filepaths" />
+        </provider>
+    </application>
+
+</manifest>
