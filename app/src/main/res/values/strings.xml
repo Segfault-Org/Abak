@@ -12,6 +12,7 @@
     <string name="backup_app">Application</string>
     <string name="backup_app_summary">%d selected</string>
     <string name="backup_app_dup">There are duplications in the list</string>
+    <string name="backup_output_type">Output Type</string>
     <string name="backup_include">Include</string>
     <string name="backup_location">Location</string>
 

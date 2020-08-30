@@ -10,9 +10,12 @@ import java.io.OutputStream;
 
 public abstract class Packager {
     public final String mime;
+    public final String defaultExtension;
 
-    public Packager(@NonNull String mime) {
+    public Packager(@NonNull String mime,
+                    @NonNull String defaultExtension) {
         this.mime = mime;
+        this.defaultExtension = defaultExtension;
     }
 
     public abstract boolean detect(@NonNull InputStream in) throws IOException;

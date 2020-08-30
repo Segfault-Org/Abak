@@ -10,6 +10,8 @@ import java9.util.stream.Collectors;
 import java9.util.stream.StreamSupport;
 import segfault.abak.backup.BackupThreadOptions;
 import segfault.abak.common.AppPluginPair;
+import segfault.abak.common.packaging.Packager;
+import segfault.abak.common.packaging.PrebuiltPackagers;
 import segfault.abak.sdkclient.Plugin;
 
 import java.util.ArrayList;
@@ -23,10 +25,12 @@ abstract class BackupOptions implements Parcelable {
     @NonNull
     public static BackupOptions create(@NonNull ArrayList<String> application,
                                        @NonNull ArrayList<Plugin> plugins,
-                                       @Nullable Uri location) {
+                                       @Nullable Uri location,
+                                       int packager) {
         return new AutoValue_BackupOptions(application,
                 plugins,
-                location);
+                location,
+                packager);
     }
 
     /**
@@ -47,6 +51,11 @@ abstract class BackupOptions implements Parcelable {
     @Nullable
     abstract Uri location();
 
+    /**
+     * The index of packager to use.
+     */
+    abstract int packager();
+
 
     /**
      * Validates the options.
@@ -58,7 +67,8 @@ abstract class BackupOptions implements Parcelable {
                 .count() > 0) return false;
         return plugins().size() != 0 &&
                 location() != null &&
-                application().size() != 0;
+                application().size() != 0 &&
+                resolvePackager() != null;
     }
 
     @NonNull
@@ -68,6 +78,12 @@ abstract class BackupOptions implements Parcelable {
                 .flatMap(app -> StreamSupport.stream(plugins())
                         .map(plugin -> AppPluginPair.create(app, plugin)))
                 .collect(Collectors.toList());
-        return BackupThreadOptions.create(pairs, location());
+        return BackupThreadOptions.create(pairs, location(), packager());
+    }
+
+    @Nullable
+    public final Packager resolvePackager() {
+        if (packager() == -1) return null;
+        return PrebuiltPackagers.PREBUILT_PACKAGERS[packager()];
     }
 }

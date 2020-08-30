@@ -16,7 +16,6 @@ import segfault.abak.common.BindServiceSupplier;
 import segfault.abak.common.backupformat.BackupLayout;
 import segfault.abak.common.backupformat.entries.ApplicationEntryV1;
 import segfault.abak.common.packaging.PackagingSession;
-import segfault.abak.common.packaging.PrebuiltPackagers;
 import segfault.abak.common.widgets.progress.Task;
 import segfault.abak.sdk.BackupRequest;
 import segfault.abak.sdk.BackupResponse;
@@ -61,7 +60,7 @@ class BackupThread extends HandlerThread implements Handler.Callback, IBackupThr
 
         try {
             mOut = mContext.getContentResolver().openOutputStream(mOptions.location());
-            final PackagingSession session = PrebuiltPackagers.PREBUILT_PACKAGERS[0].startSession(mOut);
+            final PackagingSession session = mOptions.resolvePackager().startSession(mOut);
             mLayout = BackupLayout.create(Collections.emptyList(), session);
         } catch (IOException e) {
             Log.e(TAG, "Unable to initiate the session", e);

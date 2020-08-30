@@ -10,6 +10,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
+import segfault.abak.common.packaging.PrebuiltPackagers;
 import segfault.abak.sdkclient.Plugin;
 
 import java.util.ArrayList;
@@ -28,7 +29,8 @@ public class BackupOptionsTest {
         options = BackupOptions.create(
                 new ArrayList<>(Arrays.asList("1", "2", "3")),
                 new ArrayList<>(0),
-                null
+                null,
+                0
         );
     }
 
@@ -53,10 +55,17 @@ public class BackupOptionsTest {
     }
 
     @Test
+    public void resolvePackager() {
+        assertEquals(PrebuiltPackagers.PREBUILT_PACKAGERS[0],
+                options.resolvePackager());
+    }
+
+    @Test
     public void validateEmptyPlugin() {
         final BackupOptions o = BackupOptions.create(new ArrayList<>(Arrays.asList("a", "b")),
                 new ArrayList<>(0),
-                null);
+                null,
+                0);
         assertFalse(o.validate(context));
     }
 
@@ -68,7 +77,8 @@ public class BackupOptionsTest {
                         null,
                         null,
                         false))),
-                null);
+                null,
+                0);
         assertFalse(o.validate(context));
     }
 
@@ -80,7 +90,8 @@ public class BackupOptionsTest {
                         null,
                         null,
                         true))),
-                Uri.parse("file:///"));
+                Uri.parse("file:///"),
+                0);
         assertFalse(o.validate(context));
     }
 
@@ -92,8 +103,24 @@ public class BackupOptionsTest {
                         null,
                         null,
                         false))),
-                Uri.parse("file:///"));
+                Uri.parse("file:///"),
+                0);
         assertTrue(o.application().isEmpty());
+        assertFalse(o.validate(context));
+    }
+
+    @Test
+    public void validateInvalidPackager() {
+        final BackupOptions o = BackupOptions.create(new ArrayList<>(0),
+                new ArrayList<>(Arrays.asList(Plugin.create(ComponentName.unflattenFromString("android/android"),
+                        1,
+                        null,
+                        null,
+                        false))),
+                Uri.parse("file:///"),
+                -1);
+        assertTrue(o.application().isEmpty());
+        assertNull(o.resolvePackager());
         assertFalse(o.validate(context));
     }
 
@@ -105,7 +132,8 @@ public class BackupOptionsTest {
                         null,
                         null,
                         false))),
-                Uri.parse("file:///"));
+                Uri.parse("file:///"),
+                0);
         assertNotNull(o.location());
         assertEquals(o.plugins().size(), 1);
         assertTrue(o.validate(context));

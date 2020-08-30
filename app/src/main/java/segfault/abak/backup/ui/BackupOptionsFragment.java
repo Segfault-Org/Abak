@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.os.Bundle;
+import android.provider.DocumentsContract;
 import android.text.Html;
 import android.util.Log;
 import android.view.Menu;
@@ -14,18 +15,18 @@ import androidx.annotation.NonNull;
 import java9.util.Optional;
 import java9.util.stream.Collectors;
 import java9.util.stream.StreamSupport;
-import moe.shizuku.preference.CheckBoxPreference;
-import moe.shizuku.preference.Preference;
-import moe.shizuku.preference.PreferenceCategory;
-import moe.shizuku.preference.PreferenceFragment;
+import moe.shizuku.preference.*;
 import segfault.abak.R;
 import segfault.abak.common.AppUtils;
+import segfault.abak.common.packaging.Packager;
+import segfault.abak.common.packaging.PrebuiltPackagers;
 import segfault.abak.common.widgets.LongClickableCheckboxPreference;
 import segfault.abak.common.widgets.Nav;
 import segfault.abak.sdk.SdkConstants;
 import segfault.abak.sdkclient.Plugin;
 import segfault.abak.sdkclient.SDKClient;
 
+import java.io.IOException;
 import java.util.*;
 
 /**
@@ -46,7 +47,7 @@ public class BackupOptionsFragment extends PreferenceFragment implements Prefere
     private static final String STATE_PLUGIN_SETTINGS_RESULT_INTENT = BackupOptionsFragment.class.getName() +
             ".STATE_PLUGIN_SETTINGS_RESULT_INTENT";
 
-    private BackupOptions mOptions = BackupOptions.create(new ArrayList<>(0), new ArrayList<>(0), null);
+    private BackupOptions mOptions = BackupOptions.create(new ArrayList<>(0), new ArrayList<>(0), null, -1);
 
     // Ignored from saved instance
     private ArrayList<Plugin> mAllPlugins;
@@ -90,15 +91,27 @@ public class BackupOptionsFragment extends PreferenceFragment implements Prefere
         }
 
         findPreference("backup_location").setOnPreferenceClickListener(preference -> {
+            final Packager packager = mOptions.resolvePackager();
+            if (packager == null) return false; // The user had not chosen a packager
             Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
             intent.addCategory(Intent.CATEGORY_OPENABLE);
-            intent.setType("application/x-tar");
-            intent.putExtra(Intent.EXTRA_TITLE, "backup.tar");
+            intent.setType(packager.mime);
+            intent.putExtra(Intent.EXTRA_TITLE, "backup." + packager.defaultExtension);
             startActivityForResult(intent, RC_SELECT_LOCATION);
             return true;
         });
 
-        // final DialogPreference appPref = (DialogPreference) findPreference("backup_app");
+        final ListPreference type = (ListPreference) findPreference("backup_output_type");
+        final List<CharSequence> packagerNames = new ArrayList<>(PrebuiltPackagers.PREBUILT_PACKAGERS.length);
+        final List<String> packagerIndexes = new ArrayList<>(PrebuiltPackagers.PREBUILT_PACKAGERS.length);
+        for (int i = 0; i < PrebuiltPackagers.PREBUILT_PACKAGERS.length; i ++) {
+            packagerNames.add(PrebuiltPackagers.PREBUILT_PACKAGERS[i].loadName(requireContext()));
+            packagerIndexes.add(String.valueOf(i));
+        }
+        type.setEntries(packagerNames.toArray(new CharSequence[]{}));
+        type.setEntryValues(packagerIndexes.toArray(new String[]{}));
+
+        type.setOnPreferenceChangeListener(this);
     }
 
     @Override
@@ -139,7 +152,25 @@ public class BackupOptionsFragment extends PreferenceFragment implements Prefere
                 }
                 mOptions = BackupOptions.create(new ArrayList<>(lst),
                         mOptions.plugins(),
-                        mOptions.location());
+                        mOptions.location(),
+                        mOptions.packager());
+                break;
+            case "backup_output_type":
+                final int originalPackager = mOptions.packager();
+                mOptions = BackupOptions.create(mOptions.application(),
+                        mOptions.plugins(),
+                        mOptions.location(),
+                        Integer.parseInt(newValue.toString()));
+                if (mOptions.location() != null && originalPackager != mOptions.packager()) {
+                    try {
+                        DocumentsContract.deleteDocument(requireContext().getContentResolver(),
+                                mOptions.location());
+                    } catch (IOException ignored) {}
+                    mOptions = BackupOptions.create(mOptions.application(),
+                            mOptions.plugins(),
+                            null,
+                            mOptions.packager());
+                }
                 break;
         }
         // Validate the options.
@@ -163,7 +194,8 @@ public class BackupOptionsFragment extends PreferenceFragment implements Prefere
                 if (resultCode != Activity.RESULT_OK) return;
                 mOptions = BackupOptions.create(mOptions.application(),
                         mOptions.plugins(),
-                        data.getData());
+                        data.getData(),
+                        mOptions.packager());
                 dataToUI();
                 break;
             case RC_PLUGIN_SETTINGS:
@@ -197,6 +229,9 @@ public class BackupOptionsFragment extends PreferenceFragment implements Prefere
         findPreference("backup_location").setSummary(mOptions.location() != null ?
                 mOptions.location().toString()
                 : null);
+        findPreference("backup_location").setEnabled(mOptions.resolvePackager() != null);
+        if (mOptions.resolvePackager() != null)
+            findPreference("backup_output_type").setSummary(mOptions.resolvePackager().loadName(requireContext()));
     }
 
     @Override
@@ -224,7 +259,8 @@ public class BackupOptionsFragment extends PreferenceFragment implements Prefere
                 new ArrayList<>(StreamSupport.stream(mOptions.plugins())
                         .filter(plugin -> mAllPlugins.contains(plugin))
                         .collect(Collectors.toList())),
-                mOptions.location());
+                mOptions.location(),
+                mOptions.packager());
         // Also the UI
         final PreferenceCategory category = (PreferenceCategory) findPreference("backup_include");
         category.removeAll();

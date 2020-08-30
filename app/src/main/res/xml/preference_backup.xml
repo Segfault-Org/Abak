@@ -8,14 +8,9 @@
         app:commitOnEnter="true"
         android:singleLine="false" />
 
-    <!--
-    <MultiSelectListPreference
-        android:key="backup_include"
-        android:title="@string/backup_include"
-        android:entryValues="@array/backup_include_values"
-        android:entries="@array/backup_include_labels"
-        android:persistent="false" />
-    -->
+    <ListPreference
+        android:key="backup_output_type"
+        android:title="@string/backup_output_type" />
 
     <Preference
         android:key="backup_location"

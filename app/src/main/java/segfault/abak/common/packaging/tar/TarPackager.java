@@ -18,7 +18,7 @@ public class TarPackager extends Packager {
     private static final byte[] MAGIC = new byte[]{ 117, 115, 116, 97 };
 
     public TarPackager() {
-        super("application/x-tar");
+        super("application/x-tar", "tar");
     }
 
     @Override
