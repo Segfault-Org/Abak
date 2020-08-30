@@ -4,8 +4,11 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import segfault.abak.common.backupformat.entries.Entry;
 import segfault.abak.common.backupformat.manifest.ManifestFile;
+import segfault.abak.common.packaging.PackagingSession;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 
 /**
@@ -22,11 +25,11 @@ import java.util.List;
  * Considering the format of manifest may change in the future, its file name does not
  * contain an extension.
  */
-public interface BackupLayout extends SerializableComponent<File> {
+public interface BackupLayout extends SerializableComponent<Void> {
     String TAG = "BackupLayout";
 
-    static BackupLayout create(@NonNull List<Entry> entries) {
-        return new BackupLayoutV1(entries, 1);
+    static BackupLayout create(@NonNull List<Entry> entries, @NonNull PackagingSession packagingSession) {
+        return new BackupLayoutV1(entries, 1, packagingSession);
     }
 
     static BackupLayout parse(@NonNull File extracted, @NonNull ManifestFile manifest) throws InvalidFormatException {
@@ -39,4 +42,6 @@ public interface BackupLayout extends SerializableComponent<File> {
 
     @NonNull
     List<Entry> entries();
+
+    void writeNewEntry(@NonNull Entry entry, @NonNull InputStream data) throws IOException;
 }

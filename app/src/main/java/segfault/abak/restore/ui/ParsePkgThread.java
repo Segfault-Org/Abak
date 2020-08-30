@@ -9,6 +9,7 @@ import segfault.abak.common.backupformat.BackupLayout;
 import segfault.abak.common.backupformat.InvalidFormatException;
 import segfault.abak.common.backupformat.manifest.ManifestFile;
 
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,7 +40,10 @@ class ParsePkgThread implements Runnable {
             extract.mkdir();
 
             final InputStream pkgInput = mContext.getContentResolver().openInputStream(mPkg);
-            RestoreDriver.extract(pkgInput, extract);
+            // BufferedInputStream supports mark / reset.
+            final BufferedInputStream bufferedInputStream = new BufferedInputStream(pkgInput);
+            RestoreDriver.extract(bufferedInputStream, extract);
+            bufferedInputStream.close();
             pkgInput.close();
 
             final ManifestFile manifest = RestoreDriver.parseManifest(RestoreDriver.findManifest(extract));

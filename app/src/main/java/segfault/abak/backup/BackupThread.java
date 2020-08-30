@@ -13,15 +13,20 @@ import java9.util.stream.Collectors;
 import java9.util.stream.StreamSupport;
 import segfault.abak.common.AppPluginPair;
 import segfault.abak.common.BindServiceSupplier;
+import segfault.abak.common.backupformat.BackupLayout;
 import segfault.abak.common.backupformat.entries.ApplicationEntryV1;
-import segfault.abak.common.widgets.FileUtils;
+import segfault.abak.common.packaging.PackagingSession;
+import segfault.abak.common.packaging.PrebuiltPackagers;
 import segfault.abak.common.widgets.progress.Task;
 import segfault.abak.sdk.BackupRequest;
 import segfault.abak.sdk.BackupResponse;
 import segfault.abak.sdk.IPluginService;
 import segfault.abak.sdkclient.Plugin;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -43,6 +48,9 @@ class BackupThread extends HandlerThread implements Handler.Callback, IBackupThr
     private HashMap<AppPluginPair, BackupResponse> mResults;
     private HashMap<Plugin, BindServiceSupplier.Result> mConns;
 
+    private final OutputStream mOut;
+    private final BackupLayout mLayout;
+
     public BackupThread(@NonNull IBackupThread.Callback callback, @NonNull BackupThreadOptions options, @NonNull Context context) {
         super(TAG);
         mCallback = callback;
@@ -50,6 +58,15 @@ class BackupThread extends HandlerThread implements Handler.Callback, IBackupThr
         mContext = context;
         mResults = new HashMap<>(mOptions.tasks().size());
         mConns = new HashMap<>(mOptions.tasks().size());
+
+        try {
+            mOut = mContext.getContentResolver().openOutputStream(mOptions.location());
+            final PackagingSession session = PrebuiltPackagers.PREBUILT_PACKAGERS[0].startSession(mOut);
+            mLayout = BackupLayout.create(Collections.emptyList(), session);
+        } catch (IOException e) {
+            Log.e(TAG, "Unable to initiate the session", e);
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -100,15 +117,15 @@ class BackupThread extends HandlerThread implements Handler.Callback, IBackupThr
                                         mPool)
                                 .thenApplyAsync(result -> {
                                     try {
-                                        Log.d(TAG, "Copying file");
+                                        Log.d(TAG, "Packaging file");
                                         // Copy file
                                         // TODO: Copying can be skipped and the file may be directly added to the tarball.
                                         final InputStream in = mContext.getContentResolver().openInputStream(result.response.data);
-                                        final File cache = getReceivedCacheFile(task);
-                                        final OutputStream out = new FileOutputStream(cache);
-                                        FileUtils.copy(in, out);
-                                        out.close();
-                                        in.close();
+                                        mLayout.writeNewEntry(ApplicationEntryV1.create(
+                                                task.application(),
+                                                task.plugin().component(),
+                                                task.plugin().version()
+                                        ), in);
                                         mContext.revokeUriPermission(result.response.data, 0);
                                         return result;
                                     } catch (IOException e) {
@@ -148,23 +165,10 @@ class BackupThread extends HandlerThread implements Handler.Callback, IBackupThr
         // Package
         if (!mAtLeastOneError) {
             mCallback.sendProgress("package", Task.PROG_INDETERMINATE);
-            final BackupDriver backupDriver = new BackupDriver(StreamSupport.stream(mResults.entrySet())
-                    .map(pair -> {
-                        final AppPluginPair task = pair.getKey();
-                        // final BackupResponse response = pair.getValue().first.response;
-                        return ApplicationEntryV1.create(
-                                task.application(),
-                                task.plugin().component(),
-                                task.plugin().version(),
-                                getReceivedCacheFile(task)
-                        );
-                    })
-                    .collect(Collectors.toList()),
-                    mContext);
+            final BackupDriver backupDriver = new BackupDriver(mLayout, mContext);
             try {
-                final OutputStream stream = mContext.getContentResolver().openOutputStream(mOptions.location());
-                backupDriver.write(stream);
-                stream.close();
+                backupDriver.write(null);
+                mOut.close();
                 mCallback.sendProgress("package", Task.PROG_COMPLETED);
             } catch (IOException e) {
                 Log.e(TAG, "Unable to package", e);
@@ -176,10 +180,6 @@ class BackupThread extends HandlerThread implements Handler.Callback, IBackupThr
             mCallback.sendProgress("package", Task.PROG_SKIPPED);
         }
         mCallback.sendResult(!mAtLeastOneError);
-    }
-
-    private @NonNull File getReceivedCacheFile(@NonNull AppPluginPair pair) {
-        return new File(mContext.getCacheDir(), pair.taskName());
     }
 
     @Override

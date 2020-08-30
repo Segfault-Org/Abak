@@ -1,35 +1,23 @@
 package segfault.abak.restore.ui;
 
 import androidx.annotation.NonNull;
-import org.kamranzafar.jtar.TarEntry;
-import org.kamranzafar.jtar.TarInputStream;
 import segfault.abak.common.backupformat.BackupLayout;
 import segfault.abak.common.backupformat.InvalidFormatException;
 import segfault.abak.common.backupformat.manifest.ManifestFile;
+import segfault.abak.common.packaging.Packager;
+import segfault.abak.common.packaging.PrebuiltPackagers;
 import segfault.abak.common.widgets.FileUtils;
 
 import java.io.*;
 
 class RestoreDriver {
     public static void extract(@NonNull InputStream tarball, @NonNull File destFolder) throws IOException {
-        final TarInputStream tis = new TarInputStream(new BufferedInputStream(tarball));
-        TarEntry entry;
-
-        while((entry = tis.getNextEntry()) != null) {
-            int count;
-            byte[] data = new byte[2048];
-            FileOutputStream fos = new FileOutputStream(new File(destFolder, entry.getName()));
-            BufferedOutputStream dest = new BufferedOutputStream(fos);
-
-            while((count = tis.read(data)) != -1) {
-                dest.write(data, 0, count);
-            }
-
-            dest.flush();
-            dest.close();
+        for (final Packager pkgr : PrebuiltPackagers.PREBUILT_PACKAGERS) {
+            if (!pkgr.detect(tarball)) continue;
+            pkgr.unpack(tarball, destFolder);
+            return;
         }
-
-        tis.close();
+        throw new IOException("Unknown file magic");
     }
 
     @NonNull

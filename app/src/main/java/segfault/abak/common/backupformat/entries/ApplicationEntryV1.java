@@ -33,18 +33,23 @@ public abstract class ApplicationEntryV1 extends Entry {
         return ApplicationEntryV1.create(application,
                 ComponentName.unflattenFromString(
                         pluginComponent.replace('-', '/')),
-                pluginVersion,
-                data);
+                pluginVersion);
     }
 
     public static ApplicationEntryV1 create(@NonNull String application,
                                             @NonNull ComponentName pluginComponent,
-                                            int pluginVersion,
-                                            @NonNull File data) {
+                                            int pluginVersion) {
         return new AutoValue_ApplicationEntryV1(application,
                 pluginComponent,
-                pluginVersion,
-                data);
+                pluginVersion);
+    }
+
+    @Override
+    public final String toPersistableName() {
+        return String.format("app:%1$s:%2$s:%3$s",
+                application(),
+                persistablePluginComponent(),
+                pluginVersion());
     }
 
     @NonNull
@@ -58,9 +63,6 @@ public abstract class ApplicationEntryV1 extends Entry {
     }
 
     public abstract int pluginVersion();
-
-    @NonNull
-    public abstract File data();
 
     @Override
     public void write(@NonNull File file) throws IOException {

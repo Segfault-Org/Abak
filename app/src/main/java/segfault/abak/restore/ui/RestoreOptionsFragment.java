@@ -29,10 +29,12 @@ import segfault.abak.common.AppPluginPair;
 import segfault.abak.common.AppUtils;
 import segfault.abak.common.backupformat.entries.ApplicationEntryV1;
 import segfault.abak.common.widgets.Nav;
+import segfault.abak.restore.ApplicationEntryWithInput;
 import segfault.abak.restore.RestoreOptions;
 import segfault.abak.sdkclient.Plugin;
 import segfault.abak.sdkclient.SDKClient;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -133,7 +135,7 @@ public class RestoreOptionsFragment extends PreferenceFragment implements Handle
         if (mPkg == null && !mOpenDialogDisplayed && mParseThread == null) {
             final Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT)
                     .addCategory(Intent.CATEGORY_OPENABLE)
-                    .setType("application/x-tar");
+                    .setType("*/*");
             startActivityForResult(intent, RC_OPEN);
             mOpenDialogDisplayed = true;
         }
@@ -233,19 +235,22 @@ public class RestoreOptionsFragment extends PreferenceFragment implements Handle
         getPreferenceScreen().setEnabled(true);
         ((PreferenceGroup) findPreference("restore_include")).removeAll();
         StreamSupport.stream(mPkg.entries())
-                .filter(entry -> entry instanceof ApplicationEntryV1)
-                .map(entry -> (ApplicationEntryV1) entry)
+                .filter(entry -> entry instanceof ApplicationEntryWithInput)
+                .map(entry -> (ApplicationEntryWithInput) entry)
                 .map(applicationEntry -> {
-                    final Plugin plugin = SDKClient.resolvePlugin(applicationEntry.pluginComponent(), requireContext());
+                    final ApplicationEntryV1 entry = applicationEntry.entry();
+                    final File data = applicationEntry.data();
+
+                    final Plugin plugin = SDKClient.resolvePlugin(entry.pluginComponent(), requireContext());
                     final TwoStatePreference preference = new CheckBoxPreference(requireContext());
 
-                    if (plugin == null || plugin.version() < applicationEntry.pluginVersion()) {
+                    if (plugin == null || plugin.version() < entry.pluginVersion()) {
                         // No longer available, remove.
                         final Optional<RestoreOptions.DataAppPluginPair> existing = StreamSupport.stream(mOptions.apps())
                                 .filter(pair -> {
                                     // Do a swallow match
-                                    return pair.pair().application().equals(applicationEntry.application()) &&
-                                            pair.pair().plugin().component().equals(applicationEntry.pluginComponent());
+                                    return pair.pair().application().equals(entry.application()) &&
+                                            pair.pair().plugin().component().equals(entry.pluginComponent());
                                 })
                                 .findFirst();
                         if (existing.isPresent())
@@ -254,11 +259,11 @@ public class RestoreOptionsFragment extends PreferenceFragment implements Handle
 
                     if (plugin == null) {
                         // The plugin is not installed
-                        preference.setTitle(applicationEntry.pluginComponent().flattenToShortString());
+                        preference.setTitle(entry.pluginComponent().flattenToShortString());
                         preference.setEnabled(false);
                         preference.setChecked(false);
                         preference.setSummary(R.string.restore_plugin_not_found);
-                    } else if (plugin.version() < applicationEntry.pluginVersion()) {
+                    } else if (plugin.version() < entry.pluginVersion()) {
                         // The plugin is outdated
                         preference.setTitle(plugin.loadTitle(requireContext()));
                         preference.setEnabled(false);
@@ -267,15 +272,15 @@ public class RestoreOptionsFragment extends PreferenceFragment implements Handle
                     } else {
                         final RestoreOptions.DataAppPluginPair pair =
                                 RestoreOptions.DataAppPluginPair.create(
-                                        AppPluginPair.create(applicationEntry.application(), plugin),
-                                applicationEntry.data());
+                                        AppPluginPair.create(entry.application(), plugin),
+                                data);
                         preference.setTitle(plugin.loadTitle(requireContext()));
                         preference.setEnabled(true);
                         preference.setChecked(mOptions.apps().contains(pair));
                         preference.setSummary(Html.fromHtml(getString(
                                 R.string.restore_plugin_summary,
                                 AppUtils.appName(plugin.component().getPackageName(), requireContext()),
-                                AppUtils.appName(applicationEntry.application(), requireContext())
+                                AppUtils.appName(entry.application(), requireContext())
                         )));
                         preference.setOnPreferenceChangeListener((pref, newValue) -> {
                             if ((boolean) newValue)

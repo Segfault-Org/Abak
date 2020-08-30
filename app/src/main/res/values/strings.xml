@@ -69,4 +69,7 @@ For %2$s
 
     <!-- Progress -->
     <string name="progress_status_item">%2$s (%1$s)</string>
+
+    <!-- Packagers -->
+    <string name="packager_tar">Tarball</string>
 </resources>

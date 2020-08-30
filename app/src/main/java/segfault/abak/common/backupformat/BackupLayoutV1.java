@@ -1,20 +1,17 @@
 package segfault.abak.common.backupformat;
 
-import android.system.ErrnoException;
-import android.system.Os;
 import android.util.Log;
-import android.util.Pair;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import java9.util.stream.Collectors;
 import java9.util.stream.StreamSupport;
 import segfault.abak.common.backupformat.entries.ApplicationEntryV1;
 import segfault.abak.common.backupformat.entries.Entry;
 import segfault.abak.common.backupformat.manifest.ManifestFile;
+import segfault.abak.common.packaging.PackagingSession;
+import segfault.abak.restore.ApplicationEntryWithInput;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
 import java.util.Arrays;
 import java.util.List;
 
@@ -29,9 +26,14 @@ class BackupLayoutV1 implements BackupLayout {
     private final List<Entry> mEntries;
     private final ManifestFile mManifest;
 
-    BackupLayoutV1(@NonNull List<Entry> entries, int version) {
+    // If not null, the layout is created manually and running under backup mode.
+    @Nullable
+    private PackagingSession mPackaging;
+
+    BackupLayoutV1(@NonNull List<Entry> entries, int version, @NonNull PackagingSession packagingSession) {
         mEntries = entries;
         mManifest = ManifestFile.create(version);
+        mPackaging = packagingSession;
     }
 
     BackupLayoutV1(@NonNull File extracted, @NonNull ManifestFile manifest) throws InvalidFormatException {
@@ -48,7 +50,8 @@ class BackupLayoutV1 implements BackupLayout {
                     try {
                         switch (segments[0]) {
                             case "app":
-                                return ApplicationEntryV1.parse(file);
+                                return ApplicationEntryWithInput.create(ApplicationEntryV1.parse(file),
+                                        file);
                             default:
                                 Log.w(TAG, "Ignoring " + segments[0]);
                                 return null;
@@ -72,42 +75,28 @@ class BackupLayoutV1 implements BackupLayout {
     }
 
     @Override
-    public void write(@NonNull File file) throws IOException {
-        // Move files. Final packaging is done by driver.
-        final File manifestFile = new File(file, "manifest.1");
-        final OutputStream manifestOut = new FileOutputStream(manifestFile);
-        mManifest.write(manifestOut);
-        manifestOut.close();
+    public void write(@NonNull Void na) throws IOException {
+        synchronized (this) {
+            if (mPackaging == null)
+                throw new IllegalStateException("The layout is not running under backup mode");
+            // Move files. Final packaging is done by driver.
+            final ByteArrayOutputStream manifestOut = new ByteArrayOutputStream();
+            mManifest.write(manifestOut);
+            final InputStream manifestIn = new ByteArrayInputStream(manifestOut.toByteArray());
+            manifestOut.close();
+            mPackaging.addFile(manifestIn, "manifest.1");
 
-        final long errors = StreamSupport.stream(mEntries)
-                .filter(item -> item instanceof ApplicationEntryV1)
-                .map(entry -> {
-                    final ApplicationEntryV1 appEntry = (ApplicationEntryV1) entry;
-                    // To, From
-                    return new Pair<>(new File(file, String.format("app:%1$s:%2$s:%3$s",
-                            appEntry.application(),
-                            appEntry.persistablePluginComponent(),
-                            appEntry.pluginVersion())),
-                            appEntry.data());
-                })
-                .map(pair -> {
-                    final File target = pair.first;
-                    final File source = pair.second;
-                    try {
-                        Os.rename(source.getAbsolutePath(), target.getAbsolutePath());
-                        return true;
-                    } catch (ErrnoException e) {
-                        Log.e(TAG, "Cannot rename() from " + source.getName() + " to " + target.getName(), e);
-                        Log.e(TAG, "Dump1 " + source.getAbsolutePath());
-                        Log.e(TAG, "Dump2 " + target.getAbsolutePath());
-                        return false;
-                    }
-                })
-                .filter(result -> !result) /* Check if there are errors */
-                .count();
-        if (errors > 0) {
-            Log.e(TAG, "Moving entries caused one or more errors: " + errors);
-            throw new IOException("Moving entries caused one or more errors: " + errors);
+            mPackaging.close();
+        }
+    }
+
+    @Override
+    public void writeNewEntry(@NonNull Entry entry, @NonNull InputStream data) throws IOException {
+        synchronized (this) {
+            if (mPackaging == null) {
+                throw new IllegalStateException("The layout is not running under backup mode");
+            }
+            mPackaging.addFile(data, entry.toPersistableName());
         }
     }
 }
